@@ -9,7 +9,7 @@ const app = express();
 // ===== KONFIGURASI CORS YANG DIPERBAIKI =====
 const corsOptions = {
   origin: [
-    'https://anekamobill.netlify.app', // Domain Netlify kamu
+    'https://anekamobil.netlify.app', // Domain Netlify kamu
     'http://localhost:5173',                // Untuk development lokal (Vite)
     'http://localhost:8080',                 // Untuk development lokal (jika pakai port 8080)
     'http://localhost:3000'                  // Untuk development lokal (jika pakai port 3000)
