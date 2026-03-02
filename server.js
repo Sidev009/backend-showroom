@@ -6,7 +6,22 @@ const path = require("path");
 
 const app = express();
 
-app.use(cors());
+// ===== KONFIGURASI CORS YANG DIPERBAIKI =====
+const corsOptions = {
+  origin: [
+    'https://anekamobill.netlify.app', // Domain Netlify kamu
+    'http://localhost:5173',                // Untuk development lokal (Vite)
+    'http://localhost:8080',                 // Untuk development lokal (jika pakai port 8080)
+    'http://localhost:3000'                  // Untuk development lokal (jika pakai port 3000)
+  ],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+// ============================================
+
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -491,7 +506,7 @@ app.delete("/api/admin/banners/:id", (req, res) => {
 });
 
 // ========== START SERVER ==========
-const PORT = process.env.PORT || 8080;  // Railway biasanya pake 8080
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log("=================================");
