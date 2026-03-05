@@ -65,7 +65,7 @@ res.json({
 message: "Backend Showroom API running",
 endpoints: [
 "/cars",
-"/cars/",
+"/cars/:id",
 "/articles",
 "/tiktok",
 "/api/banners"
@@ -78,20 +78,20 @@ app.get("/cars", async (req, res) => {
 try {
 
 const cars = await query(
-  "SELECT * FROM cars ORDER BY id DESC"
+"SELECT * FROM cars ORDER BY id DESC"
 );
 
 if (!cars.length) return res.json([]);
 
 const images = await query(
-  "SELECT * FROM car_images"
+"SELECT * FROM car_images"
 );
 
 const result = cars.map(car => ({
-  ...car,
-  images: images
-    .filter(img => img.car_id === car.id)
-    .map(img => `/uploads/${img.image_path}`)
+...car,
+images: images
+.filter(img => img.car_id === car.id)
+.map(img => `https://backend-showroom-production.up.railway.app/uploads/${img.image_path}`)
 }));
 
 res.json(result);
@@ -102,25 +102,28 @@ res.status(500).json({ error: err.message });
 });
 
 /* ================= GET CAR DETAIL ================= */
-app.get("/cars/", async (req, res) => {
+/* PERBAIKAN: sebelumnya /cars/ */
+app.get("/cars/:id", async (req, res) => {
 try {
 
 const car = await query(
-  "SELECT * FROM cars WHERE id = ?",
-  [req.params.id]
+"SELECT * FROM cars WHERE id = ?",
+[req.params.id]
 );
 
 if (!car.length)
-  return res.status(404).json({ error: "Not found" });
+return res.status(404).json({ error: "Not found" });
 
 const images = await query(
-  "SELECT * FROM car_images WHERE car_id = ?",
-  [req.params.id]
+"SELECT * FROM car_images WHERE car_id = ?",
+[req.params.id]
 );
 
 res.json({
-  ...car[0],
-  images: images.map(img => `/uploads/${img.image_path}`)
+...car[0],
+images: images.map(img =>
+`https://backend-showroom-production.up.railway.app/uploads/${img.image_path}`
+)
 });
 
 } catch (err) {
@@ -135,28 +138,28 @@ try {
 const { name, brand, year, price } = req.body;
 
 const result = await query(
-  "INSERT INTO cars (name,brand,year,price) VALUES (?,?,?,?)",
-  [name, brand, year, price]
+"INSERT INTO cars (name,brand,year,price) VALUES (?,?,?,?)",
+[name, brand, year, price]
 );
 
 const carId = result.insertId;
 
 if (req.files?.length) {
 
-  const values = req.files.map(file => [
-    carId,
-    file.filename
-  ]);
+const values = req.files.map(file => [
+carId,
+file.filename
+]);
 
-  await query(
-    "INSERT INTO car_images (car_id,image_path) VALUES ?",
-    [values]
-  );
+await query(
+"INSERT INTO car_images (car_id,image_path) VALUES ?",
+[values]
+);
 }
 
 res.json({
-  message: "Mobil berhasil ditambahkan",
-  id: carId
+message: "Mobil berhasil ditambahkan",
+id: carId
 });
 
 } catch (err) {
@@ -165,12 +168,13 @@ res.status(500).json({ error: err.message });
 });
 
 /* ================= DELETE CAR ================= */
-app.delete("/cars/", async (req, res) => {
+/* PERBAIKAN: sebelumnya /cars/ */
+app.delete("/cars/:id", async (req, res) => {
 try {
 
 await query(
-  "DELETE FROM cars WHERE id=?",
-  [req.params.id]
+"DELETE FROM cars WHERE id=?",
+[req.params.id]
 );
 
 res.json({ message: "Mobil dihapus" });
@@ -185,7 +189,7 @@ app.get("/articles", async (req, res) => {
 try {
 
 const articles = await query(
-  "SELECT * FROM articles ORDER BY id DESC"
+"SELECT * FROM articles ORDER BY id DESC"
 );
 
 res.json(articles);
@@ -201,12 +205,12 @@ try {
 const { title, link, category } = req.body;
 
 const thumbnail = req.file
-  ? req.file.filename
-  : null;
+? req.file.filename
+: null;
 
 const result = await query(
-  "INSERT INTO articles (title,file_path,thumbnail,category) VALUES (?,?,?,?)",
-  [title, link || "", thumbnail, category || "Tips"]
+"INSERT INTO articles (title,file_path,thumbnail,category) VALUES (?,?,?,?)",
+[title, link || "", thumbnail, category || "Tips"]
 );
 
 res.json({ id: result.insertId });
@@ -221,7 +225,7 @@ app.get("/tiktok", async (req, res) => {
 try {
 
 const videos = await query(
-  "SELECT * FROM tiktok_videos ORDER BY id DESC"
+"SELECT * FROM tiktok_videos ORDER BY id DESC"
 );
 
 res.json(videos);
@@ -237,8 +241,8 @@ try {
 const { title, url } = req.body;
 
 const result = await query(
-  "INSERT INTO tiktok_videos (title,url) VALUES (?,?)",
-  [title || "Video TikTok", url]
+"INSERT INTO tiktok_videos (title,url) VALUES (?,?)",
+[title || "Video TikTok", url]
 );
 
 res.json({ id: result.insertId });
@@ -253,16 +257,16 @@ app.get("/api/banners", async (req, res) => {
 try {
 
 const today = new Date()
-  .toISOString()
-  .split("T")[0];
+.toISOString()
+.split("T")[0];
 
 const banners = await query(
-  `SELECT * FROM promo_banners
-   WHERE is_active = true
-   AND (start_date IS NULL OR start_date <= ?)
-   AND (end_date IS NULL OR end_date >= ?)
-   ORDER BY id DESC`,
-  [today, today]
+`SELECT * FROM promo_banners
+WHERE is_active = true
+AND (start_date IS NULL OR start_date <= ?)
+AND (end_date IS NULL OR end_date >= ?)
+ORDER BY id DESC`,
+[today, today]
 );
 
 res.json(banners);
