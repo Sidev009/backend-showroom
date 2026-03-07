@@ -276,6 +276,21 @@ res.status(500).json({ error: err.message });
 }
 });
 
+/* ================= ADMIN BANNERS ================= */
+app.get("/api/admin/banners", async (req, res) => {
+try {
+
+const banners = await query(
+"SELECT * FROM promo_banners ORDER BY id DESC"
+);
+
+res.json(banners);
+
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+
 // ========== START SERVER ==========
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
