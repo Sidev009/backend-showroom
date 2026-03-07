@@ -76,16 +76,10 @@ endpoints: [
 /* ================= GET CARS ================= */
 app.get("/cars", async (req, res) => {
 try {
-
-const cars = await query(
-"SELECT * FROM cars ORDER BY id DESC"
-);
-
+const cars = await query("SELECT * FROM cars ORDER BY id DESC");
 if (!cars.length) return res.json([]);
 
-const images = await query(
-"SELECT * FROM car_images"
-);
+const images = await query("SELECT * FROM car_images");
 
 const result = cars.map(car => ({
 ...car,
@@ -95,37 +89,23 @@ images: images
 }));
 
 res.json(result);
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
 });
 
 /* ================= GET CAR DETAIL ================= */
-/* PERBAIKAN: sebelumnya /cars/ */
 app.get("/cars/:id", async (req, res) => {
 try {
+const car = await query("SELECT * FROM cars WHERE id = ?", [req.params.id]);
+if (!car.length) return res.status(404).json({ error: "Not found" });
 
-const car = await query(
-"SELECT * FROM cars WHERE id = ?",
-[req.params.id]
-);
-
-if (!car.length)
-return res.status(404).json({ error: "Not found" });
-
-const images = await query(
-"SELECT * FROM car_images WHERE car_id = ?",
-[req.params.id]
-);
+const images = await query("SELECT * FROM car_images WHERE car_id = ?", [req.params.id]);
 
 res.json({
 ...car[0],
-images: images.map(img =>
-`https://backend-showroom-production.up.railway.app/uploads/${img.image_path}`
-)
+images: images.map(img => `https://backend-showroom-production.up.railway.app/uploads/${img.image_path}`)
 });
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -134,51 +114,74 @@ res.status(500).json({ error: err.message });
 /* ================= CREATE CAR ================= */
 app.post("/cars", upload.array("images", 20), async (req, res) => {
 try {
+const { 
+name, brand, year, price, credit_price, 
+km, fuel, transmission, description 
+} = req.body;
 
-const { name, brand, year, price } = req.body;
+const thumbnail = req.files?.length ? req.files[0].filename : null;
 
 const result = await query(
-"INSERT INTO cars (name,brand,year,price) VALUES (?,?,?,?)",
-[name, brand, year, price]
+`INSERT INTO cars 
+(name, brand, year, price, credit_price, km, fuel, transmission, description, image) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+[
+name, brand, year, price, credit_price || 0, 
+km || 0, fuel || "Bensin", transmission || "Manual", 
+description || "", thumbnail
+]
 );
 
 const carId = result.insertId;
 
 if (req.files?.length) {
-
-const values = req.files.map(file => [
-carId,
-file.filename
-]);
-
-await query(
-"INSERT INTO car_images (car_id,image_path) VALUES ?",
-[values]
-);
+const values = req.files.map(file => [carId, file.filename]);
+await query("INSERT INTO car_images (car_id, image_path) VALUES ?", [values]);
 }
 
-res.json({
-message: "Mobil berhasil ditambahkan",
-id: carId
+res.json({ message: "Mobil berhasil ditambahkan", id: carId });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
 });
 
+/* ================= UPDATE CAR ================= */
+app.put("/cars/:id", upload.array("images", 20), async (req, res) => {
+try {
+const { 
+name, brand, year, price, credit_price, 
+km, fuel, transmission, description 
+} = req.body;
+
+await query(
+`UPDATE cars SET 
+name = ?, brand = ?, year = ?, price = ?, credit_price = ?,
+km = ?, fuel = ?, transmission = ?, description = ?
+WHERE id = ?`,
+[
+name, brand, year, price, credit_price || 0,
+km || 0, fuel || "Bensin", transmission || "Manual",
+description || "", req.params.id
+]
+);
+
+if (req.files?.length) {
+const values = req.files.map(file => [req.params.id, file.filename]);
+await query("INSERT INTO car_images (car_id, image_path) VALUES ?", [values]);
+}
+
+res.json({ message: "Mobil berhasil diupdate" });
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
 });
 
 /* ================= DELETE CAR ================= */
-/* PERBAIKAN: sebelumnya /cars/ */
 app.delete("/cars/:id", async (req, res) => {
 try {
-
-await query(
-"DELETE FROM cars WHERE id=?",
-[req.params.id]
-);
-
+await query("DELETE FROM car_images WHERE car_id = ?", [req.params.id]);
+await query("DELETE FROM cars WHERE id = ?", [req.params.id]);
 res.json({ message: "Mobil dihapus" });
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -187,13 +190,8 @@ res.status(500).json({ error: err.message });
 /* ================= ARTICLES ================= */
 app.get("/articles", async (req, res) => {
 try {
-
-const articles = await query(
-"SELECT * FROM articles ORDER BY id DESC"
-);
-
+const articles = await query("SELECT * FROM articles ORDER BY id DESC");
 res.json(articles);
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -201,20 +199,48 @@ res.status(500).json({ error: err.message });
 
 app.post("/articles", upload.single("thumbnail"), async (req, res) => {
 try {
-
 const { title, link, category } = req.body;
-
-const thumbnail = req.file
-? req.file.filename
-: null;
+const thumbnail = req.file ? req.file.filename : null;
 
 const result = await query(
-"INSERT INTO articles (title,file_path,thumbnail,category) VALUES (?,?,?,?)",
+"INSERT INTO articles (title, file_path, thumbnail, category) VALUES (?, ?, ?, ?)",
 [title, link || "", thumbnail, category || "Tips"]
 );
 
-res.json({ id: result.insertId });
+res.json({ message: "Artikel berhasil ditambahkan", id: result.insertId });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
 
+app.put("/articles/:id", upload.single("thumbnail"), async (req, res) => {
+try {
+const { title, link, category } = req.body;
+const { id } = req.params;
+
+if (req.file) {
+const thumbnail = req.file.filename;
+await query(
+"UPDATE articles SET title = ?, file_path = ?, thumbnail = ?, category = ? WHERE id = ?",
+[title, link || "", thumbnail, category || "Tips", id]
+);
+} else {
+await query(
+"UPDATE articles SET title = ?, file_path = ?, category = ? WHERE id = ?",
+[title, link || "", category || "Tips", id]
+);
+}
+
+res.json({ message: "Artikel berhasil diupdate" });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+
+app.delete("/articles/:id", async (req, res) => {
+try {
+await query("DELETE FROM articles WHERE id = ?", [req.params.id]);
+res.json({ message: "Artikel dihapus" });
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -223,13 +249,8 @@ res.status(500).json({ error: err.message });
 /* ================= TIKTOK ================= */
 app.get("/tiktok", async (req, res) => {
 try {
-
-const videos = await query(
-"SELECT * FROM tiktok_videos ORDER BY id DESC"
-);
-
+const videos = await query("SELECT * FROM tiktok_videos ORDER BY id DESC");
 res.json(videos);
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -237,16 +258,35 @@ res.status(500).json({ error: err.message });
 
 app.post("/tiktok", async (req, res) => {
 try {
-
 const { title, url } = req.body;
-
 const result = await query(
-"INSERT INTO tiktok_videos (title,url) VALUES (?,?)",
+"INSERT INTO tiktok_videos (title, url) VALUES (?, ?)",
 [title || "Video TikTok", url]
 );
+res.json({ message: "Video berhasil ditambahkan", id: result.insertId });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
 
-res.json({ id: result.insertId });
+app.put("/tiktok/:id", async (req, res) => {
+try {
+const { title, url } = req.body;
+const { id } = req.params;
+await query(
+"UPDATE tiktok_videos SET title = ?, url = ? WHERE id = ?",
+[title || "Video TikTok", url, id]
+);
+res.json({ message: "Video berhasil diupdate" });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
 
+app.delete("/tiktok/:id", async (req, res) => {
+try {
+await query("DELETE FROM tiktok_videos WHERE id = ?", [req.params.id]);
+res.json({ message: "Video dihapus" });
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -255,11 +295,7 @@ res.status(500).json({ error: err.message });
 /* ================= BANNERS ================= */
 app.get("/api/banners", async (req, res) => {
 try {
-
-const today = new Date()
-.toISOString()
-.split("T")[0];
-
+const today = new Date().toISOString().split("T")[0];
 const banners = await query(
 `SELECT * FROM promo_banners
 WHERE is_active = true
@@ -268,9 +304,7 @@ AND (end_date IS NULL OR end_date >= ?)
 ORDER BY id DESC`,
 [today, today]
 );
-
 res.json(banners);
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
@@ -279,40 +313,97 @@ res.status(500).json({ error: err.message });
 /* ================= ADMIN BANNERS ================= */
 app.get("/api/admin/banners", async (req, res) => {
 try {
-
-const banners = await query(
-"SELECT * FROM promo_banners ORDER BY id DESC"
-);
-
+const banners = await query("SELECT * FROM promo_banners ORDER BY id DESC");
 res.json(banners);
-
 } catch (err) {
 res.status(500).json({ error: err.message });
 }
 });
 
-// ========== START SERVER ==========
+app.post("/api/admin/banners", upload.single("image"), async (req, res) => {
+try {
+const { title, link_url, position, start_date, end_date } = req.body;
+const image_path = req.file ? req.file.filename : null;
+
+if (!image_path) {
+return res.status(400).json({ error: "Gambar banner wajib diisi" });
+}
+
+const result = await query(
+`INSERT INTO promo_banners 
+(title, image_path, link_url, position, start_date, end_date, is_active) 
+VALUES (?, ?, ?, ?, ?, ?, ?)`,
+[title || "", image_path, link_url || null, position || "home", start_date || null, end_date || null, true]
+);
+
+res.json({ message: "Banner berhasil ditambahkan", id: result.insertId });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+
+app.put("/api/admin/banners/:id", upload.single("image"), async (req, res) => {
+try {
+const { id } = req.params;
+const { title, link_url, position, start_date, end_date, is_active } = req.body;
+
+if (req.file) {
+const image_path = req.file.filename;
+await query(
+`UPDATE promo_banners 
+SET title = ?, image_path = ?, link_url = ?, position = ?, start_date = ?, end_date = ?, is_active = ? 
+WHERE id = ?`,
+[title || "", image_path, link_url || null, position || "home", start_date || null, end_date || null, is_active === 'true' ? 1 : 0, id]
+);
+} else {
+await query(
+`UPDATE promo_banners 
+SET title = ?, link_url = ?, position = ?, start_date = ?, end_date = ?, is_active = ? 
+WHERE id = ?`,
+[title || "", link_url || null, position || "home", start_date || null, end_date || null, is_active === 'true' ? 1 : 0, id]
+);
+}
+
+res.json({ message: "Banner berhasil diupdate" });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+
+app.delete("/api/admin/banners/:id", async (req, res) => {
+try {
+await query("DELETE FROM promo_banners WHERE id = ?", [req.params.id]);
+res.json({ message: "Banner berhasil dihapus" });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
+});
+
+/* ================= START SERVER ================= */
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log("=================================");
-  console.log("API endpoints ready:");
-  console.log("  GET  /");
-  console.log("  GET  /cars");
-  console.log("  GET  /cars/:id");
-  console.log("  POST /cars");
-  console.log("  PUT  /cars/:id");
-  console.log("  DELETE /cars/:id");
-  console.log("  GET  /articles");
-  console.log("  POST /articles");
-  console.log("  PUT  /articles/:id");
-  console.log("  DELETE /articles/:id");
-  console.log("  GET  /tiktok");
-  console.log("  GET  /tiktok/:id");
-  console.log("  POST /tiktok");
-  console.log("  PUT  /tiktok/:id");
-  console.log("  DELETE /tiktok/:id");
-  console.log("  GET  /api/banners");
-  console.log("  GET  /api/admin/banners");
-  console.log("=================================");
+console.log(`Server running on port ${PORT}`);
+console.log("=================================");
+console.log("API endpoints ready:");
+console.log("  GET  /");
+console.log("  GET  /cars");
+console.log("  GET  /cars/:id");
+console.log("  POST /cars");
+console.log("  PUT  /cars/:id");
+console.log("  DELETE /cars/:id");
+console.log("  GET  /articles");
+console.log("  POST /articles");
+console.log("  PUT  /articles/:id");
+console.log("  DELETE /articles/:id");
+console.log("  GET  /tiktok");
+console.log("  GET  /tiktok/:id");
+console.log("  POST /tiktok");
+console.log("  PUT  /tiktok/:id");
+console.log("  DELETE /tiktok/:id");
+console.log("  GET  /api/banners");
+console.log("  GET  /api/admin/banners");
+console.log("  POST /api/admin/banners");
+console.log("  PUT  /api/admin/banners/:id");
+console.log("  DELETE /api/admin/banners/:id");
+console.log("=================================");
 });
